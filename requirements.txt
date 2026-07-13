@@ -1,3 +1,3 @@
 pyrogram
-pytgcalls
-TgCrypto
+tgcrypto
+asyncio
