@@ -1,7 +1,16 @@
+import sys
 import asyncio
+
+# Python 3.14+ loop issue fix strictly before importing hydrogram
+try:
+    loop = asyncio.get_running_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
 import os
-from pyrogram import Client, filters
-from pyrogram.errors import UserAlreadyParticipant, FloodWait
+from hydrogram import Client, filters
+from hydrogram.errors import UserAlreadyParticipant, FloodWait
 
 # Environment Variables se data load karna
 API_ID = int(os.environ.get("API_ID", 30875311))
@@ -80,9 +89,7 @@ async def main():
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    # Python 3.14+ loop fix
     try:
-        asyncio.run(main())
+        loop.run_until_complete(main())
     except KeyboardInterrupt:
         print("Stopping...")
-        
