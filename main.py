@@ -10,8 +10,6 @@ except RuntimeError:
 from hydrogram import Client, filters
 from hydrogram.errors import UserAlreadyParticipant, FloodWait
 from pytgcalls import PyTgCalls
-from pytgcalls.types import AudioImagePiped
-from pytgcalls.types.input_stream import InputMode
 import config
 
 API_ID = config.API_ID
@@ -86,16 +84,13 @@ async def join_vc(client, message):
                 raise ex
 
         try:
-            await call_client.leave_group_call(resolved_id)
+            await call_client.leave_call(resolved_id)
         except Exception:
             pass
 
-        await call_client.join_group_call(
+        await call_client.play(
             resolved_id,
-            AudioImagePiped(
-                "https://raw.githubusercontent.com/userland-org/assets/main/silent.mp3",
-                input_mode=InputMode.AUDIO
-            )
+            "https://raw.githubusercontent.com/userland-org/assets/main/silent.mp3"
         )
         await status_msg.edit_text(f"✅ Userbot successfully `{target}` ke Voice Chat me join ho gaya hai!")
 
@@ -121,7 +116,7 @@ async def leave_vc(client, message):
 
         chat = await user.get_chat(chat_id)
         resolved_id = chat.id
-        await call_client.leave_group_call(resolved_id)
+        await call_client.leave_call(resolved_id)
         await message.reply_text(f"👋 Userbot ne VC se leave kar diya hai.")
     except Exception as e:
         await message.reply_text(f"❌ Error aaya: {str(e)}")
@@ -239,4 +234,3 @@ if __name__ == "__main__":
         loop.run_until_complete(main())
     except KeyboardInterrupt:
         print("Stopping...")
-    
