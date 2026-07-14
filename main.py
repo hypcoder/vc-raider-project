@@ -1,5 +1,12 @@
 import sys
 import asyncio
+
+try:
+    loop = asyncio.get_running_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
 from hydrogram import Client, filters
 from hydrogram.errors import UserAlreadyParticipant, FloodWait
 from pytgcalls import PyTgCalls
@@ -7,24 +14,17 @@ from pytgcalls.types import AudioImagePiped
 from pytgcalls.types.input_stream import InputMode
 import config
 
-# Config variables
 API_ID = config.API_ID
 API_HASH = config.API_HASH
 STRING_SESSION = config.STRING_SESSION
 BOT_TOKEN = config.BOT_TOKEN
 OWNER_ID = config.OWNER_ID
 
-# Clients Initialize
 bot = Client("raider_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 user = Client("raider_user", api_id=API_ID, api_hash=API_HASH, session_string=STRING_SESSION)
-
-# PyTgCalls Setup
 call_client = PyTgCalls(user)
 
-# Sudo Users List
 SUDO_USERS = {OWNER_ID}
-
-# Volume aur Audio States
 AUDIO_SETTINGS = {
     "volume": 200,
     "muted": False,
@@ -32,119 +32,111 @@ AUDIO_SETTINGS = {
     "treble": 0
 }
 
-# 1. Sudo Management
-@bot.on_message(filters.command("sudoadd") & filters.user(OWNER_ID))
+@bot.on_message(filters.command("sudoadd", prefixes="/") & filters.user(OWNER_ID))
 async def add_sudo(client, message):
     if message.reply_to_message:
         target_user = message.reply_to_message.from_user.id
         SUDO_USERS.add(target_user)
-        await message.reply_text(f"✅ User `{target_user}` Sudo list me add ho gaya!")
+        await message.reply_text(f"✅ User `{target_user}` ko Sudo list me jod diya gaya hai bbu!")
     else:
-        await message.reply_text("❌ Reply to a user with `/sudoadd`")
+        await message.reply_text("❌ Kisi ke message par reply karke `/sudoadd` likho!")
 
-@bot.on_message(filters.command("sudodel") & filters.user(OWNER_ID))
+@bot.on_message(filters.command("sudodel", prefixes="/") & filters.user(OWNER_ID))
 async def del_sudo(client, message):
     if message.reply_to_message:
         target_user = message.reply_to_message.from_user.id
         SUDO_USERS.discard(target_user)
-        await message.reply_text(f"🗑️ User `{target_user}` Sudo list se remove ho gaya!")
+        await message.reply_text(f"🗑️ User `{target_user}` ko Sudo list se hata diya gaya hai!")
+    else:
+        await message.reply_text("❌ Kisi ke message par reply karke `/sudodel` likho!")
 
-@bot.on_message(filters.command("sudolist"))
+@bot.on_message(filters.command("sudolist", prefixes="/") & filters.incoming)
 async def list_sudo(client, message):
     if message.from_user.id not in SUDO_USERS:
         return
-    await message.reply_text(f"👑 **Sudo Users:**\n" + "\n".join([f"- `{u}`" for u in SUDO_USERS]))
+    mentions = "\n".join([f"- `{u}`" for u in SUDO_USERS])
+    await message.reply_text(f"👑 **Sudo Users List:**\n{mentions}")
 
-# 2. VC Join & Play
-@bot.on_message(filters.command("join"))
+@bot.on_message(filters.command("join", prefixes="/") & filters.incoming)
 async def join_vc(client, message):
     if message.from_user.id not in SUDO_USERS:
         return
-    
     args = message.text.split()
     if len(args) < 2:
-        await message.reply_text("❌ Use: `/join -100xxxxxxxx` (Group ID/Username)")
+        await message.reply_text("❌ Sahi tarika: `/join [Group_Username_Ya_Link_Ya_ID]`")
         return
-    
-    chat_id = args[1]
-    if chat_id.startswith("-100"):
-        chat_id = int(chat_id)
-
-    await message.reply_text("⏳ Voice Chat me join ho raha hai...")
+    target = args[1]
+    await message.reply_text("⏳ Userbot ko Group aur VC dono me join karwaya jaa raha hai...")
     try:
-        # User client ko channel/group join karwana
-        await user.join_chat(chat_id)
-        
-        # Audio stream ko start karna (Yahan hum live mic stream inject kar rahe hain)
+        try:
+            chat = await user.join_chat(target)
+            chat_id = chat.id
+        except UserAlreadyParticipant:
+            chat = await user.get_chat(target)
+            chat_id = chat.id
         await call_client.join_group_call(
             chat_id,
             AudioImagePiped(
-                "http://docs.pytgcalls.org/en/latest/_static/yt.mp3", # Default template link ya local input file path
+                "http://docs.pytgcalls.org/en/latest/_static/yt.mp3",
                 input_mode=InputMode.AUDIO
             )
         )
-        await message.reply_text("✅ Successfully VC join kar li hai!")
+        await message.reply_text(f"✅ Userbot successfully `{target}` ke Voice Chat me join ho gaya hai! 🎉")
+    except FloodWait as e:
+        await message.reply_text(f"⚠️ FloodWait error! {e.value} seconds baad try karein.")
     except Exception as e:
-        await message.reply_text(f"❌ Error: {str(e)}")
+        await message.reply_text(f"❌ Error aaya: {str(e)}")
 
-# 3. VC Leave
-@bot.on_message(filters.command("leave"))
+@bot.on_message(filters.command("leave", prefixes="/") & filters.incoming)
 async def leave_vc(client, message):
     if message.from_user.id not in SUDO_USERS:
         return
-    
     args = message.text.split()
     if len(args) < 2:
-        await message.reply_text("❌ Use: `/leave -100xxxxxxxx` (Group ID)")
+        await message.reply_text("❌ Sahi tarika: `/leave [Group_Username_Ya_ID]`")
         return
-    
-    chat_id = int(args[1])
+    target = args[1]
     try:
+        chat = await user.get_chat(target)
+        chat_id = chat.id
         await call_client.leave_group_call(chat_id)
-        await message.reply_text("👋 VC se successfully leave kar diya!")
+        await message.reply_text(f"👋 Userbot ne `{target}` ki VC se leave kar diya hai.")
     except Exception as e:
-        await message.reply_text(f"❌ Error: {str(e)}")
+        await message.reply_text(f"❌ Error aaya: {str(e)}")
 
-# 4. Volume Control
-@bot.on_message(filters.command("volume"))
+@bot.on_message(filters.command("volume", prefixes="/") & filters.incoming)
 async def change_volume(client, message):
     if message.from_user.id not in SUDO_USERS:
         return
-    
     args = message.text.split()
     if len(args) < 2:
-        await message.reply_text(f"ℹ️ Current Volume: {AUDIO_SETTINGS['volume']}/400")
+        await message.reply_text(f"ℹ️ Current Volume Settings: {AUDIO_SETTINGS['volume']}/400")
         return
-    
-    vol = int(args[1])
-    if 0 <= vol <= 400:
-        AUDIO_SETTINGS["volume"] = vol
-        # Live Stream volume modify karna
-        try:
-            # Pytgcalls wrapper automatically controls the amplitude
+    try:
+        vol = int(args[1])
+        if 0 <= vol <= 400:
+            AUDIO_SETTINGS["volume"] = vol
             await message.reply_text(f"✅ Volume set to {vol}/400")
-        except Exception as e:
-            await message.reply_text(f"❌ Volume change failed: {str(e)}")
-    else:
-        await message.reply_text("❌ Sahi range: 0 se 400")
+        else:
+            await message.reply_text("❌ Sahi range: 0 se 400 ke beech daalo.")
+    except ValueError:
+        await message.reply_text("❌ Sahi number type karo bbu!")
 
-# 5. Mute & Unmute
-@bot.on_message(filters.command("mute"))
+@bot.on_message(filters.command("mute", prefixes="/") & filters.incoming)
 async def mute_audio(client, message):
     if message.from_user.id not in SUDO_USERS:
         return
     AUDIO_SETTINGS["muted"] = True
-    await message.reply_text("🔇 Audio output has been muted.")
+    await message.reply_text("🔇 Audio output has been muted!")
 
-@bot.on_message(filters.command("unmute"))
+@bot.on_message(filters.command("unmute", prefixes="/") & filters.incoming)
 async def unmute_audio(client, message):
     if message.from_user.id not in SUDO_USERS:
         return
     AUDIO_SETTINGS["muted"] = False
-    await message.reply_text("🔊 Audio output has been unmuted.")
+    await message.reply_text("🔊 Audio output has been unmuted!")
 
-# 6. Status check
-@bot.on_message(filters.command("status"))
+@bot.on_message(filters.command("status", prefixes="/") & filters.incoming)
 async def get_status(client, message):
     if message.from_user.id not in SUDO_USERS:
         return
@@ -157,15 +149,17 @@ async def get_status(client, message):
     )
     await message.reply_text(status_msg)
 
-# Runner Main function
 async def main():
     print("🚀 Starting Hybrid VC Relay Bot...")
     await bot.start()
     await user.start()
     await call_client.start()
-    print("✅ VC Audio Relay is ONLINE!")
+    print("✅ VC Audio Relay and Userbot are now ONLINE!")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    try:
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        print("Stopping...")
+                    
