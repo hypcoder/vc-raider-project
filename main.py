@@ -27,6 +27,7 @@ call_client = PyTgCalls(user)
 SUDO_USERS = {OWNER_ID}
 AUDIO_SETTINGS = {
     "volume": 200,
+    "gain": 5,
     "muted": False,
     "bass": 0,
     "treble": 0
@@ -73,36 +74,35 @@ async def join_vc(client, message):
         try:
             chat = await user.join_chat(target)
             resolved_id = chat.id
-            await status_msg.edit_text("✅ Group successfully join kar liya hai. Ab Voice Chat connect kar rahe hain...")
         except UserAlreadyParticipant:
             chat = await user.get_chat(target)
             resolved_id = chat.id
-            await status_msg.edit_text("ℹ️ Userbot pehle se group me hai. Direct VC connect kar rahe hain...")
         except Exception:
             try:
                 chat_id = int(target)
                 chat = await user.get_chat(chat_id)
                 resolved_id = chat.id
-                await status_msg.edit_text("ℹ️ ID se group fetch ho gaya. Direct VC connect kar rahe hain...")
             except Exception as ex:
                 raise ex
 
         try:
-            await call_client.join_group_call(
-                resolved_id,
-                AudioImagePiped(
-                    "http://docs.pytgcalls.org/en/latest/_static/yt.mp3",
-                    input_mode=InputMode.AUDIO
-                )
+            await call_client.leave_group_call(resolved_id)
+        except Exception:
+            pass
+
+        await call_client.join_group_call(
+            resolved_id,
+            AudioImagePiped(
+                "https://raw.githubusercontent.com/userland-org/assets/main/silent.mp3",
+                input_mode=InputMode.AUDIO
             )
-            await status_msg.edit_text(f"🎉 Boooom! Userbot successfully Voice Chat me enter ho gaya hai!")
-        except Exception as vc_err:
-            await status_msg.edit_text(f"❌ Group join ho gaya, par Voice Chat me ghusne me error aaya:\n`{str(vc_err)}`")
+        )
+        await status_msg.edit_text(f"✅ Userbot successfully `{target}` ke Voice Chat me join ho gaya hai!")
 
     except FloodWait as e:
         await status_msg.edit_text(f"⚠️ FloodWait error! {e.value} seconds baad try karein.")
     except Exception as e:
-        await status_msg.edit_text(f"❌ Error aaya: {str(e)}")
+        await status_msg.edit_text(f"❌ Join error: `{str(e)}`")
 
 @bot.on_message(filters.command("leave", prefixes="/") & filters.incoming)
 async def leave_vc(client, message):
@@ -144,6 +144,60 @@ async def change_volume(client, message):
     except ValueError:
         await message.reply_text("❌ Sahi number daalo!")
 
+@bot.on_message(filters.command("gain", prefixes="/") & filters.incoming)
+async def change_gain(client, message):
+    if message.from_user.id not in SUDO_USERS:
+        return
+    args = message.text.split()
+    if len(args) < 2:
+        await message.reply_text(f"ℹ️ Current Gain: {AUDIO_SETTINGS['gain']}/10")
+        return
+    try:
+        gain = int(args[1])
+        if 1 <= gain <= 10:
+            AUDIO_SETTINGS["gain"] = gain
+            await message.reply_text(f"⚡ Gain set to {gain}/10")
+        else:
+            await message.reply_text("❌ Range 1 se 10 rakhein.")
+    except ValueError:
+        await message.reply_text("❌ Sahi number daalo!")
+
+@bot.on_message(filters.command("bass", prefixes="/") & filters.incoming)
+async def change_bass(client, message):
+    if message.from_user.id not in SUDO_USERS:
+        return
+    args = message.text.split()
+    if len(args) < 2:
+        await message.reply_text(f"🎸 Current Bass: {AUDIO_SETTINGS['bass']}/100")
+        return
+    try:
+        bass = int(args[1])
+        if 0 <= bass <= 100:
+            AUDIO_SETTINGS["bass"] = bass
+            await message.reply_text(f"🎸 Bass set to {bass}/100")
+        else:
+            await message.reply_text("❌ Range 0 se 100 rakhein.")
+    except ValueError:
+        await message.reply_text("❌ Sahi number daalo!")
+
+@bot.on_message(filters.command("treble", prefixes="/") & filters.incoming)
+async def change_treble(client, message):
+    if message.from_user.id not in SUDO_USERS:
+        return
+    args = message.text.split()
+    if len(args) < 2:
+        await message.reply_text(f"🎼 Current Treble: {AUDIO_SETTINGS['treble']}/100")
+        return
+    try:
+        trb = int(args[1])
+        if 0 <= trb <= 100:
+            AUDIO_SETTINGS["treble"] = trb
+            await message.reply_text(f"🎼 Treble set to {trb}/100")
+        else:
+            await message.reply_text("❌ Range 0 se 100 rakhein.")
+    except ValueError:
+        await message.reply_text("❌ Sahi number daalo!")
+
 @bot.on_message(filters.command("mute", prefixes="/") & filters.incoming)
 async def mute_audio(client, message):
     if message.from_user.id not in SUDO_USERS:
@@ -163,8 +217,11 @@ async def get_status(client, message):
     if message.from_user.id not in SUDO_USERS:
         return
     status_msg = (
-        "📊 **Current Audio Settings:**\n\n"
+        "📊 **Current Live Audio Settings:**\n\n"
         f"🔊 **Volume:** {AUDIO_SETTINGS['volume']}/400\n"
+        f"⚡ **Gain Boost:** {AUDIO_SETTINGS['gain']}/10\n"
+        f"🎸 **Bass:** {AUDIO_SETTINGS['bass']}/100\n"
+        f"🎼 **Treble:** {AUDIO_SETTINGS['treble']}/100\n"
         f"🎙️ **Muted:** {'Yes 🔇' if AUDIO_SETTINGS['muted'] else 'No 🔊'}"
     )
     await message.reply_text(status_msg)
@@ -182,3 +239,4 @@ if __name__ == "__main__":
         loop.run_until_complete(main())
     except KeyboardInterrupt:
         print("Stopping...")
+    
