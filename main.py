@@ -37,7 +37,7 @@ async def add_sudo(client, message):
     if message.reply_to_message:
         target_user = message.reply_to_message.from_user.id
         SUDO_USERS.add(target_user)
-        await message.reply_text(f"✅ User `{target_user}` ko Sudo list me jod diya gaya hai bbu!")
+        await message.reply_text(f"✅ User `{target_user}` ko Sudo list me jod diya gaya hai!")
     else:
         await message.reply_text("❌ Kisi ke message par reply karke `/sudoadd` likho!")
 
@@ -63,35 +63,46 @@ async def join_vc(client, message):
         return
     args = message.text.split()
     if len(args) < 2:
-        await message.reply_text("❌ Sahi tarika: `/join [Group_Username_Ya_Link_Ya_ID]`")
+        await message.reply_text("❌ Sahi tarika: `/join [Username_Ya_Link_Ya_ID]`")
         return
+    
     target = args[1]
-    await message.reply_text("⏳ Userbot ko Group aur VC dono me join karwaya jaa raha hai...")
+    status_msg = await message.reply_text("⏳ Connection process start ho raha hai...")
+    
     try:
         try:
-            chat_id = int(target)
-        except ValueError:
-            chat_id = target
+            chat = await user.join_chat(target)
+            resolved_id = chat.id
+            await status_msg.edit_text("✅ Group successfully join kar liya hai. Ab Voice Chat connect kar rahe hain...")
+        except UserAlreadyParticipant:
+            chat = await user.get_chat(target)
+            resolved_id = chat.id
+            await status_msg.edit_text("ℹ️ Userbot pehle se group me hai. Direct VC connect kar rahe hain...")
+        except Exception:
+            try:
+                chat_id = int(target)
+                chat = await user.get_chat(chat_id)
+                resolved_id = chat.id
+                await status_msg.edit_text("ℹ️ ID se group fetch ho gaya. Direct VC connect kar rahe hain...")
+            except Exception as ex:
+                raise ex
 
         try:
-            chat = await user.join_chat(chat_id)
-            resolved_id = chat.id
-        except UserAlreadyParticipant:
-            chat = await user.get_chat(chat_id)
-            resolved_id = chat.id
-
-        await call_client.join_group_call(
-            resolved_id,
-            AudioImagePiped(
-                "http://docs.pytgcalls.org/en/latest/_static/yt.mp3",
-                input_mode=InputMode.AUDIO
+            await call_client.join_group_call(
+                resolved_id,
+                AudioImagePiped(
+                    "http://docs.pytgcalls.org/en/latest/_static/yt.mp3",
+                    input_mode=InputMode.AUDIO
+                )
             )
-        )
-        await message.reply_text(f"✅ Userbot successfully `{target}` ke Voice Chat me join ho gaya hai! 🎉")
+            await status_msg.edit_text(f"🎉 Boooom! Userbot successfully Voice Chat me enter ho gaya hai!")
+        except Exception as vc_err:
+            await status_msg.edit_text(f"❌ Group join ho gaya, par Voice Chat me ghusne me error aaya:\n`{str(vc_err)}`")
+
     except FloodWait as e:
-        await message.reply_text(f"⚠️ FloodWait error! {e.value} seconds baad try karein.")
+        await status_msg.edit_text(f"⚠️ FloodWait error! {e.value} seconds baad try karein.")
     except Exception as e:
-        await message.reply_text(f"❌ Error aaya: {str(e)}")
+        await status_msg.edit_text(f"❌ Error aaya: {str(e)}")
 
 @bot.on_message(filters.command("leave", prefixes="/") & filters.incoming)
 async def leave_vc(client, message):
@@ -99,7 +110,7 @@ async def leave_vc(client, message):
         return
     args = message.text.split()
     if len(args) < 2:
-        await message.reply_text("❌ Sahi tarika: `/leave [Group_Username_Ya_ID]`")
+        await message.reply_text("❌ Sahi tarika: `/leave [Username_Ya_ID]`")
         return
     target = args[1]
     try:
@@ -111,7 +122,7 @@ async def leave_vc(client, message):
         chat = await user.get_chat(chat_id)
         resolved_id = chat.id
         await call_client.leave_group_call(resolved_id)
-        await message.reply_text(f"👋 Userbot ne `{target}` ki VC se leave kar diya hai.")
+        await message.reply_text(f"👋 Userbot ne VC se leave kar diya hai.")
     except Exception as e:
         await message.reply_text(f"❌ Error aaya: {str(e)}")
 
@@ -121,7 +132,7 @@ async def change_volume(client, message):
         return
     args = message.text.split()
     if len(args) < 2:
-        await message.reply_text(f"ℹ️ Current Volume Settings: {AUDIO_SETTINGS['volume']}/400")
+        await message.reply_text(f"ℹ️ Current Volume: {AUDIO_SETTINGS['volume']}/400")
         return
     try:
         vol = int(args[1])
@@ -129,9 +140,9 @@ async def change_volume(client, message):
             AUDIO_SETTINGS["volume"] = vol
             await message.reply_text(f"✅ Volume set to {vol}/400")
         else:
-            await message.reply_text("❌ Sahi range: 0 se 400 ke beech daalo.")
+            await message.reply_text("❌ Range 0 se 400 rakhein.")
     except ValueError:
-        await message.reply_text("❌ Sahi number type karo bbu!")
+        await message.reply_text("❌ Sahi number daalo!")
 
 @bot.on_message(filters.command("mute", prefixes="/") & filters.incoming)
 async def mute_audio(client, message):
@@ -154,8 +165,6 @@ async def get_status(client, message):
     status_msg = (
         "📊 **Current Audio Settings:**\n\n"
         f"🔊 **Volume:** {AUDIO_SETTINGS['volume']}/400\n"
-        f"🎸 **Bass:** {AUDIO_SETTINGS['bass']}/100\n"
-        f"🎼 **Treble:** {AUDIO_SETTINGS['treble']}/100\n"
         f"🎙️ **Muted:** {'Yes 🔇' if AUDIO_SETTINGS['muted'] else 'No 🔊'}"
     )
     await message.reply_text(status_msg)
@@ -173,4 +182,3 @@ if __name__ == "__main__":
         loop.run_until_complete(main())
     except KeyboardInterrupt:
         print("Stopping...")
-    
