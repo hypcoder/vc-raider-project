@@ -8,19 +8,21 @@ except RuntimeError:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-import os
 from hydrogram import Client, filters
 from hydrogram.errors import UserAlreadyParticipant, FloodWait
 
-# Environment Variables se data load karna
-API_ID = int(os.environ.get("API_ID", 30875311))
-API_HASH = os.environ.get("API_HASH", "2263d3987058e2cc2b460e9c1d81faa7")
-STRING_SESSION = os.environ.get("STRING_SESSION")
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-OWNER_ID = int(os.environ.get("OWNER_ID", 8898007647))
-SOURCE_CHAT = int(os.environ.get("SOURCE_CHAT", -1004312851361))
+# Config file ko import karna
+import config
 
-# Clients Initialize karna
+# Config se direct data load karna
+API_ID = config.API_ID
+API_HASH = config.API_HASH
+STRING_SESSION = config.STRING_SESSION
+BOT_TOKEN = config.BOT_TOKEN
+OWNER_ID = config.OWNER_ID
+SOURCE_CHAT = config.SOURCE_CHAT
+
+# Clients Initialize karna (Ab ye direct config se correct details uthayenge)
 bot = Client("raider_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 user = Client("raider_user", api_id=API_ID, api_hash=API_HASH, session_string=STRING_SESSION)
 
@@ -93,3 +95,4 @@ if __name__ == "__main__":
         loop.run_until_complete(main())
     except KeyboardInterrupt:
         print("Stopping...")
+                                                       
