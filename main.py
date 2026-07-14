@@ -69,13 +69,19 @@ async def join_vc(client, message):
     await message.reply_text("⏳ Userbot ko Group aur VC dono me join karwaya jaa raha hai...")
     try:
         try:
-            chat = await user.join_chat(target)
-            chat_id = chat.id
+            chat_id = int(target)
+        except ValueError:
+            chat_id = target
+
+        try:
+            chat = await user.join_chat(chat_id)
+            resolved_id = chat.id
         except UserAlreadyParticipant:
-            chat = await user.get_chat(target)
-            chat_id = chat.id
+            chat = await user.get_chat(chat_id)
+            resolved_id = chat.id
+
         await call_client.join_group_call(
-            chat_id,
+            resolved_id,
             AudioImagePiped(
                 "http://docs.pytgcalls.org/en/latest/_static/yt.mp3",
                 input_mode=InputMode.AUDIO
@@ -97,9 +103,14 @@ async def leave_vc(client, message):
         return
     target = args[1]
     try:
-        chat = await user.get_chat(target)
-        chat_id = chat.id
-        await call_client.leave_group_call(chat_id)
+        try:
+            chat_id = int(target)
+        except ValueError:
+            chat_id = target
+
+        chat = await user.get_chat(chat_id)
+        resolved_id = chat.id
+        await call_client.leave_group_call(resolved_id)
         await message.reply_text(f"👋 Userbot ne `{target}` ki VC se leave kar diya hai.")
     except Exception as e:
         await message.reply_text(f"❌ Error aaya: {str(e)}")
@@ -162,4 +173,4 @@ if __name__ == "__main__":
         loop.run_until_complete(main())
     except KeyboardInterrupt:
         print("Stopping...")
-                    
+    
