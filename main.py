@@ -21,6 +21,8 @@ OWNER_ID = config.OWNER_ID
 
 bot = Client("raider_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 user = Client("raider_user", api_id=API_ID, api_hash=API_HASH, session_string=STRING_SESSION)
+
+# Explicitly passing Hydrogram client wrapper to PyTgCalls to bypass client validation error
 call_client = PyTgCalls(user)
 
 SUDO_USERS = {OWNER_ID}
@@ -72,17 +74,14 @@ async def join_vc(client, message):
     
     chat_id = None
 
-    # Step 1: Invite Link ya ID resolve karna
     if "t.me/+" in target or "t.me/joinchat/" in target:
         try:
             chat = await user.join_chat(target)
             chat_id = chat.id
         except UserAlreadyParticipant:
-            # Agar bot pehle se hai toh dialogs parsing se dynamic fetch karenge
             await status_msg.edit_text("🔄 Userbot group me pehle se hai. Active cache check ho raha hai...")
             async for dialog in user.get_dialogs(limit=100):
                 if dialog.chat.type in ["supergroup", "group"]:
-                    # Private group me link se match nahi hota, isliye sabse active groups ko check karte hain
                     chat_id = dialog.chat.id
                     break
             if not chat_id:
@@ -102,7 +101,6 @@ async def join_vc(client, message):
                 await status_msg.edit_text(f"❌ ID Resolve Error: {str(e)}")
                 return
 
-    # Step 2: PEER_ID_INVALID Fix (Memory cache sync)
     try:
         await user.get_chat(chat_id)
     except (PeerIdInvalid, Exception):
@@ -116,14 +114,12 @@ async def join_vc(client, message):
             await status_msg.edit_text(f"❌ Userbot ko is chat ID (`{chat_id}`) ka access nahi mil raha.")
             return
 
-    # Step 3: Modern pytgcalls Play Connection
     try:
         try:
             await call_client.leave_call(chat_id)
         except:
             pass
 
-        # Updated modern MediaStream setup (bina deprecated imports ke)
         await call_client.play(
             chat_id,
             MediaStream(
@@ -269,3 +265,4 @@ if __name__ == "__main__":
         loop.run_until_complete(main())
     except KeyboardInterrupt:
         print("Stopping...")
+    
