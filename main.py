@@ -7,8 +7,8 @@ except RuntimeError:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-from hydrogram import Client, filters
-from hydrogram.errors import UserAlreadyParticipant, FloodWait, PeerIdInvalid
+from pyrogram import Client, filters
+from pyrogram.errors import UserAlreadyParticipant, FloodWait, PeerIdInvalid
 from pytgcalls import PyTgCalls
 from pytgcalls.types import MediaStream
 import config
@@ -19,10 +19,11 @@ STRING_SESSION = config.STRING_SESSION
 BOT_TOKEN = config.BOT_TOKEN
 OWNER_ID = config.OWNER_ID
 
+# Standard Pyrogram Clients
 bot = Client("raider_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 user = Client("raider_user", api_id=API_ID, api_hash=API_HASH, session_string=STRING_SESSION)
 
-# Explicitly passing Hydrogram client wrapper to PyTgCalls to bypass client validation error
+# PyTgCalls with Pyrogram (Fully compatible)
 call_client = PyTgCalls(user)
 
 SUDO_USERS = {OWNER_ID}
