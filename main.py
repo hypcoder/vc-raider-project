@@ -11,7 +11,6 @@ from hydrogram import Client, filters
 from hydrogram.errors import UserAlreadyParticipant, FloodWait, PeerIdInvalid
 from pytgcalls import PyTgCalls
 from pytgcalls.types import MediaStream
-from pytgcalls.types.input_stream import InputMode
 import config
 
 API_ID = config.API_ID
@@ -69,28 +68,28 @@ async def join_vc(client, message):
         return
     
     target = args[1]
-    status_msg = await message.reply_text(f"⏳ Target `{target}` par VC connection initiate kiya jaa raha hai...")
+    status_msg = await message.reply_text(f"⏳ Connection process kiya jaa raha hai...")
     
     chat_id = None
 
-    # Step 1: Link ya ID ko resolve karna (Bypass already participant error)
+    # Step 1: Invite Link ya ID resolve karna
     if "t.me/+" in target or "t.me/joinchat/" in target:
         try:
             chat = await user.join_chat(target)
             chat_id = chat.id
         except UserAlreadyParticipant:
-            # Agar bot pehle se hai toh dialogs scan karke peer cache se ID nikalte hain
-            await status_msg.edit_text("🔄 Userbot already group me hai. Peer check ho raha hai...")
-            async for dialog in user.get_dialogs(limit=80):
-                # Is dynamic check se direct automatic target join ho jayega bina link reject kiye
+            # Agar bot pehle se hai toh dialogs parsing se dynamic fetch karenge
+            await status_msg.edit_text("🔄 Userbot group me pehle se hai. Active cache check ho raha hai...")
+            async for dialog in user.get_dialogs(limit=100):
                 if dialog.chat.type in ["supergroup", "group"]:
+                    # Private group me link se match nahi hota, isliye sabse active groups ko check karte hain
                     chat_id = dialog.chat.id
                     break
             if not chat_id:
-                await status_msg.edit_text("⚠️ Userbot pehle se hai par direct ID resolve nahi ho saki.\n👉 **Direct numeric ID use karo:** `/join -1003501428752`")
+                await status_msg.edit_text("⚠️ Userbot pehle se hai par ID extract nahi ho saki.\n👉 **Direct ID use karein:** `/join -1003501428752`")
                 return
         except Exception as e:
-            await status_msg.edit_text(f"❌ Invite Link Join Error: {str(e)}")
+            await status_msg.edit_text(f"❌ Join Link Error: {str(e)}")
             return
     else:
         try:
@@ -100,44 +99,43 @@ async def join_vc(client, message):
                 chat = await user.get_chat(target)
                 chat_id = chat.id
             except Exception as e:
-                await status_msg.edit_text(f"❌ Resolve Error: {str(e)}")
+                await status_msg.edit_text(f"❌ ID Resolve Error: {str(e)}")
                 return
 
-    # Step 2: PEER_ID_INVALID bypass logic (Telegram cache force syncer)
+    # Step 2: PEER_ID_INVALID Fix (Memory cache sync)
     try:
         await user.get_chat(chat_id)
-    except (PeerIdInvalid, Exception) as e:
-        await status_msg.edit_text("🔄 Connection refresh ho raha hai (Peer Sync)...")
-        async for dialog in user.get_dialogs(limit=60):
+    except (PeerIdInvalid, Exception):
+        await status_msg.edit_text("🔄 Memory registers update kiye jaa rahe hain...")
+        async for dialog in user.get_dialogs(limit=50):
             if dialog.chat.id == chat_id:
                 break
         try:
             await user.get_chat(chat_id)
         except Exception as err:
-            await status_msg.edit_text(f"❌ Userbot is group ID (`{chat_id}`) ko read nahi kar pa raha hai. Confirm karo ki userbot us group me manually added hai.")
+            await status_msg.edit_text(f"❌ Userbot ko is chat ID (`{chat_id}`) ka access nahi mil raha.")
             return
 
-    # Step 3: Modern pytgcalls 2026 Core join system
+    # Step 3: Modern pytgcalls Play Connection
     try:
         try:
             await call_client.leave_call(chat_id)
         except:
             pass
 
-        # Native Stream logic jo updated pytgcalls me full stable hai
+        # Updated modern MediaStream setup (bina deprecated imports ke)
         await call_client.play(
             chat_id,
             MediaStream(
-                "https://raw.githubusercontent.com/userland-org/assets/main/silent.mp3",
-                video_flags=MediaStream.Headers(InputMode.AUDIO)
+                "https://raw.githubusercontent.com/userland-org/assets/main/silent.mp3"
             )
         )
-        await status_msg.edit_text(f"🎉 **Boom!** Userbot target group `{chat_id}` ke voice chat me connect ho gaya hai!")
+        await status_msg.edit_text(f"🎉 **Boom!** Userbot successfully group `{chat_id}` ke voice chat me connect ho gaya!")
         
     except FloodWait as e:
-        await status_msg.edit_text(f"⚠️ Telegram limitation active! {e.value} seconds baad dobara koshish karein.")
+        await status_msg.edit_text(f"⚠️ Telegram flood wait: {e.value} seconds.")
     except Exception as vc_err:
-        await status_msg.edit_text(f"❌ VC Join Fail:\n`{str(vc_err)}`\n\n**Note:** Check karein ki target group ki VC manually open ho!")
+        await status_msg.edit_text(f"❌ Connection Fail:\n`{str(vc_err)}`\n\n**Tip:** Group me voice chat manually open honi chahiye.")
 
 @bot.on_message(filters.command("leave", prefixes="/") & filters.incoming)
 async def leave_vc(client, message):
@@ -154,7 +152,7 @@ async def leave_vc(client, message):
         await call_client.leave_call(chat_id)
         await message.reply_text(f"👋 Userbot ne VC `{chat_id}` se leave kar diya.")
     except ValueError:
-        await message.reply_text("❌ Sahi format me numerical ID likhein.")
+        await message.reply_text("❌ Numerical ID type karein.")
     except Exception as e:
         await message.reply_text(f"❌ Leave Error: {str(e)}")
 
@@ -249,7 +247,7 @@ async def get_status(client, message):
     if message.from_user.id not in SUDO_USERS:
         return
     status_msg = (
-        "📊 **Current Live Audio Settings (2026 Core):**\n\n"
+        "📊 **Current Live Audio Settings:**\n\n"
         f"🔊 **Volume:** {AUDIO_SETTINGS['volume']}/400\n"
         f"⚡ **Gain Boost:** {AUDIO_SETTINGS['gain']}/10\n"
         f"🎸 **Bass:** {AUDIO_SETTINGS['bass']}/100\n"
