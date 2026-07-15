@@ -23,8 +23,11 @@ OWNER_ID = config.OWNER_ID
 bot = Client("raider_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 user = Client("raider_user", api_id=API_ID, api_hash=API_HASH, session_string=STRING_SESSION)
 
-# PyTgCalls with Pyrogram (Fully compatible)
-call_client = PyTgCalls(user)
+# Explicit PyTgCalls Client (Bypassing validation crash)
+call_client = PyTgCalls(
+    user,
+    cache_duration=10
+)
 
 SUDO_USERS = {OWNER_ID}
 AUDIO_SETTINGS = {
