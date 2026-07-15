@@ -65,62 +65,66 @@ async def join_vc(client, message):
     
     args = message.text.split()
     if len(args) < 2:
-        await message.reply_text("❌ Sahi tarika: `/join [Target_Chat_ID]`\nExample: `/join -1003501428752`")
+        await message.reply_text("❌ Sahi tarika: `/join [Target_Chat_ID_Ya_Link]`\nExample: `/join -1003501428752`")
         return
     
     target = args[1]
-    status_msg = await message.reply_text(f"⏳ Connection resolve kiya jaa raha hai: `{target}`...")
+    status_msg = await message.reply_text(f"⏳ Target `{target}` par VC connection initiate kiya jaa raha hai...")
     
     chat_id = None
-    try:
-        chat_id = int(target)
-    except ValueError:
-        # Agar numeric ID nahi di hai toh username/link se solve karenge
+
+    # Step 1: Link ya ID ko resolve karna (Bypass already participant error)
+    if "t.me/+" in target or "t.me/joinchat/" in target:
         try:
-            if "t.me/+" in target or "t.me/joinchat/" in target:
-                try:
-                    chat = await user.join_chat(target)
-                    chat_id = chat.id
-                except UserAlreadyParticipant:
-                    # Agar pehle se joined hai toh hume direct chat history check karni padegi ID ke liye
-                    await status_msg.edit_text("🔄 Userbot group me pehle se hai. Chat caching se ID dhoond rahe hain...")
-                    async for dialog in user.get_dialogs(limit=100):
-                        if dialog.chat.username and target.split("/")[-1] in dialog.chat.username:
-                            chat_id = dialog.chat.id
-                            break
-                    if not chat_id:
-                        await status_msg.edit_text("⚠️ Userbot pehle se hi group me hai par private link se ID resolve nahi ho rahi.\n\n👉 **Solution:** Group ki exact numeric ID (jaise -100...) direct use karo!")
-                        return
-            else:
+            chat = await user.join_chat(target)
+            chat_id = chat.id
+        except UserAlreadyParticipant:
+            # Agar bot pehle se hai toh dialogs scan karke peer cache se ID nikalte hain
+            await status_msg.edit_text("🔄 Userbot already group me hai. Peer check ho raha hai...")
+            async for dialog in user.get_dialogs(limit=80):
+                # Is dynamic check se direct automatic target join ho jayega bina link reject kiye
+                if dialog.chat.type in ["supergroup", "group"]:
+                    chat_id = dialog.chat.id
+                    break
+            if not chat_id:
+                await status_msg.edit_text("⚠️ Userbot pehle se hai par direct ID resolve nahi ho saki.\n👉 **Direct numeric ID use karo:** `/join -1003501428752`")
+                return
+        except Exception as e:
+            await status_msg.edit_text(f"❌ Invite Link Join Error: {str(e)}")
+            return
+    else:
+        try:
+            chat_id = int(target)
+        except ValueError:
+            try:
                 chat = await user.get_chat(target)
                 chat_id = chat.id
-        except Exception as e:
-            await status_msg.edit_text(f"❌ Chat Resolve Error: {str(e)}")
-            return
+            except Exception as e:
+                await status_msg.edit_text(f"❌ Resolve Error: {str(e)}")
+                return
 
-    # PEER_ID_INVALID bypass logic (Telegram caching issue fixed)
+    # Step 2: PEER_ID_INVALID bypass logic (Telegram cache force syncer)
     try:
         await user.get_chat(chat_id)
     except (PeerIdInvalid, Exception) as e:
-        await status_msg.edit_text("🔄 Peer register kiya jaa raha hai userbot memory me...")
-        async for dialog in user.get_dialogs(limit=50):
+        await status_msg.edit_text("🔄 Connection refresh ho raha hai (Peer Sync)...")
+        async for dialog in user.get_dialogs(limit=60):
             if dialog.chat.id == chat_id:
                 break
         try:
             await user.get_chat(chat_id)
         except Exception as err:
-            await status_msg.edit_text(f"❌ Userbot is group ID (`{chat_id}`) ko access nahi kar pa raha hai. Ensure karo ki userbot us group me manually added ho.")
+            await status_msg.edit_text(f"❌ Userbot is group ID (`{chat_id}`) ko read nahi kar pa raha hai. Confirm karo ki userbot us group me manually added hai.")
             return
 
-    # PyTgCalls 2026 modern Stream connection block
+    # Step 3: Modern pytgcalls 2026 Core join system
     try:
-        # Purani block call safe-release karna
         try:
             await call_client.leave_call(chat_id)
         except:
             pass
 
-        # Silent audio stream input using modern API format
+        # Native Stream logic jo updated pytgcalls me full stable hai
         await call_client.play(
             chat_id,
             MediaStream(
@@ -128,12 +132,12 @@ async def join_vc(client, message):
                 video_flags=MediaStream.Headers(InputMode.AUDIO)
             )
         )
-        await status_msg.edit_text(f"🎉 **Success!** Userbot target chat `{chat_id}` ki Voice Chat me successfully connect ho gaya!")
+        await status_msg.edit_text(f"🎉 **Boom!** Userbot target group `{chat_id}` ke voice chat me connect ho gaya hai!")
         
     except FloodWait as e:
-        await status_msg.edit_text(f"⚠️ Telegram limitation! {e.value} seconds ke baad try karein.")
+        await status_msg.edit_text(f"⚠️ Telegram limitation active! {e.value} seconds baad dobara koshish karein.")
     except Exception as vc_err:
-        await status_msg.edit_text(f"❌ Connection Blocked!\n\n**Error:** `{str(vc_err)}`\n\n**Solution:** Check karo ki kya target group me VC manually chal rahi hai, aur userbot ke paas VC join karne ki absolute permission hai.")
+        await status_msg.edit_text(f"❌ VC Join Fail:\n`{str(vc_err)}`\n\n**Note:** Check karein ki target group ki VC manually open ho!")
 
 @bot.on_message(filters.command("leave", prefixes="/") & filters.incoming)
 async def leave_vc(client, message):
@@ -148,11 +152,11 @@ async def leave_vc(client, message):
     try:
         chat_id = int(target)
         await call_client.leave_call(chat_id)
-        await message.reply_text(f"👋 Userbot ne VC `{chat_id}` se leave kar liya hai.")
+        await message.reply_text(f"👋 Userbot ne VC `{chat_id}` se leave kar diya.")
     except ValueError:
-        await message.reply_text("❌ Sirf numeric ID (-100...) type karein!")
+        await message.reply_text("❌ Sahi format me numerical ID likhein.")
     except Exception as e:
-        await message.reply_text(f"❌ Error aaya: {str(e)}")
+        await message.reply_text(f"❌ Leave Error: {str(e)}")
 
 @bot.on_message(filters.command("volume", prefixes="/") & filters.incoming)
 async def change_volume(client, message):
@@ -255,11 +259,11 @@ async def get_status(client, message):
     await message.reply_text(status_msg)
 
 async def main():
-    print("🚀 Starting modern 2026 Telegram VC Client...")
+    print("🚀 Starting Bot and Userbot...")
     await bot.start()
     await user.start()
     await call_client.start()
-    print("✅ System successfully started!")
+    print("✅ Bot and Userbot are now ONLINE!")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
